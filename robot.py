@@ -6,17 +6,17 @@ import time
 import xml.etree.ElementTree as ET
 from queue import Empty
 from threading import Thread
-from base.func_zhipu import ZhiPu
 
 from wcferry import Wcf, WxMsg
 
-from base.func_bard import BardAssistant
-from base.func_chatglm import ChatGLM
-from base.func_chatgpt import ChatGPT
-from base.func_chengyu import cy
-from base.func_news import News
-from base.func_tigerbot import TigerBot
-from base.func_xinghuo_web import XinghuoWeb
+# from base.func_zhipu import ZhiPu
+# from base.func_bard import BardAssistant
+# from base.func_chatglm import ChatGLM
+# from base.func_chatgpt import ChatGPT
+# from base.func_chengyu import cy
+# from base.func_news import News
+# from base.func_tigerbot import TigerBot
+# from base.func_xinghuo_web import XinghuoWeb
 from configuration import Config
 from constants import ChatType
 from job_mgmt import Job
@@ -34,41 +34,41 @@ class Robot(Job):
         self.LOG = logging.getLogger("Robot")
         self.wxid = self.wcf.get_self_wxid()
         self.allContacts = self.getAllContacts()
+        #TODO 添加一个长期记忆存储器，使用向量数据库，针对每一个微信用户的聊天内容长期存储
+        # if ChatType.is_in_chat_types(chat_type):
+        #     if chat_type == ChatType.TIGER_BOT.value and TigerBot.value_check(self.config.TIGERBOT):
+        #         self.chat = TigerBot(self.config.TIGERBOT)
+        #     elif chat_type == ChatType.CHATGPT.value and ChatGPT.value_check(self.config.CHATGPT):
+        #         self.chat = ChatGPT(self.config.CHATGPT)
+        #     elif chat_type == ChatType.XINGHUO_WEB.value and XinghuoWeb.value_check(self.config.XINGHUO_WEB):
+        #         self.chat = XinghuoWeb(self.config.XINGHUO_WEB)
+        #     elif chat_type == ChatType.CHATGLM.value and ChatGLM.value_check(self.config.CHATGLM):
+        #         self.chat = ChatGLM(self.config.CHATGLM)
+        #     elif chat_type == ChatType.BardAssistant.value and BardAssistant.value_check(self.config.BardAssistant):
+        #         self.chat = BardAssistant(self.config.BardAssistant)
+        #     elif chat_type == ChatType.ZhiPu.value and ZhiPu.value_check(self.config.ZHIPU):
+        #         self.chat = ZhiPu(self.config.ZHIPU)
+        #     else:
+        #         self.LOG.warning("未配置模型")
+        #         self.chat = None
+        # else:
+        #     if TigerBot.value_check(self.config.TIGERBOT):
+        #         self.chat = TigerBot(self.config.TIGERBOT)
+        #     elif ChatGPT.value_check(self.config.CHATGPT):
+        #         self.chat = ChatGPT(self.config.CHATGPT)
+        #     elif XinghuoWeb.value_check(self.config.XINGHUO_WEB):
+        #         self.chat = XinghuoWeb(self.config.XINGHUO_WEB)
+        #     elif ChatGLM.value_check(self.config.CHATGLM):
+        #         self.chat = ChatGLM(self.config.CHATGLM)
+        #     elif BardAssistant.value_check(self.config.BardAssistant):
+        #         self.chat = BardAssistant(self.config.BardAssistant)
+        #     elif ZhiPu.value_check(self.config.ZhiPu):
+        #         self.chat = ZhiPu(self.config.ZhiPu)
+        #     else:
+        #         self.LOG.warning("未配置模型")
+        #         self.chat = None
 
-        if ChatType.is_in_chat_types(chat_type):
-            if chat_type == ChatType.TIGER_BOT.value and TigerBot.value_check(self.config.TIGERBOT):
-                self.chat = TigerBot(self.config.TIGERBOT)
-            elif chat_type == ChatType.CHATGPT.value and ChatGPT.value_check(self.config.CHATGPT):
-                self.chat = ChatGPT(self.config.CHATGPT)
-            elif chat_type == ChatType.XINGHUO_WEB.value and XinghuoWeb.value_check(self.config.XINGHUO_WEB):
-                self.chat = XinghuoWeb(self.config.XINGHUO_WEB)
-            elif chat_type == ChatType.CHATGLM.value and ChatGLM.value_check(self.config.CHATGLM):
-                self.chat = ChatGLM(self.config.CHATGLM)
-            elif chat_type == ChatType.BardAssistant.value and BardAssistant.value_check(self.config.BardAssistant):
-                self.chat = BardAssistant(self.config.BardAssistant)
-            elif chat_type == ChatType.ZhiPu.value and ZhiPu.value_check(self.config.ZHIPU):
-                self.chat = ZhiPu(self.config.ZHIPU)
-            else:
-                self.LOG.warning("未配置模型")
-                self.chat = None
-        else:
-            if TigerBot.value_check(self.config.TIGERBOT):
-                self.chat = TigerBot(self.config.TIGERBOT)
-            elif ChatGPT.value_check(self.config.CHATGPT):
-                self.chat = ChatGPT(self.config.CHATGPT)
-            elif XinghuoWeb.value_check(self.config.XINGHUO_WEB):
-                self.chat = XinghuoWeb(self.config.XINGHUO_WEB)
-            elif ChatGLM.value_check(self.config.CHATGLM):
-                self.chat = ChatGLM(self.config.CHATGLM)
-            elif BardAssistant.value_check(self.config.BardAssistant):
-                self.chat = BardAssistant(self.config.BardAssistant)
-            elif ZhiPu.value_check(self.config.ZhiPu):
-                self.chat = ZhiPu(self.config.ZhiPu)
-            else:
-                self.LOG.warning("未配置模型")
-                self.chat = None
-
-        self.LOG.info(f"已选择: {self.chat}")
+        # self.LOG.info(f"已选择: {self.chat}")
 
     @staticmethod
     def value_check(args: dict) -> bool:
@@ -83,32 +83,32 @@ class Robot(Job):
         """
         return self.toChitchat(msg)
 
-    def toChengyu(self, msg: WxMsg) -> bool:
-        """
-        处理成语查询/接龙消息
-        :param msg: 微信消息结构
-        :return: 处理状态，`True` 成功，`False` 失败
-        """
-        status = False
-        texts = re.findall(r"^([#|?|？])(.*)$", msg.content)
-        # [('#', '天天向上')]
-        if texts:
-            flag = texts[0][0]
-            text = texts[0][1]
-            if flag == "#":  # 接龙
-                if cy.isChengyu(text):
-                    rsp = cy.getNext(text)
-                    if rsp:
-                        self.sendTextMsg(rsp, msg.roomid)
-                        status = True
-            elif flag in ["?", "？"]:  # 查词
-                if cy.isChengyu(text):
-                    rsp = cy.getMeaning(text)
-                    if rsp:
-                        self.sendTextMsg(rsp, msg.roomid)
-                        status = True
+    # def toChengyu(self, msg: WxMsg) -> bool:
+    #     """
+    #     处理成语查询/接龙消息
+    #     :param msg: 微信消息结构
+    #     :return: 处理状态，`True` 成功，`False` 失败
+    #     """
+    #     status = False
+    #     texts = re.findall(r"^([#|?|？])(.*)$", msg.content)
+    #     # [('#', '天天向上')]
+    #     if texts:
+    #         flag = texts[0][0]
+    #         text = texts[0][1]
+    #         if flag == "#":  # 接龙
+    #             if cy.isChengyu(text):
+    #                 rsp = cy.getNext(text)
+    #                 if rsp:
+    #                     self.sendTextMsg(rsp, msg.roomid)
+    #                     status = True
+    #         elif flag in ["?", "？"]:  # 查词
+    #             if cy.isChengyu(text):
+    #                 rsp = cy.getMeaning(text)
+    #                 if rsp:
+    #                     self.sendTextMsg(rsp, msg.roomid)
+    #                     status = True
 
-        return status
+    #     return status
 
     def toChitchat(self, msg: WxMsg) -> bool:
         """闲聊，接入 ChatGPT
@@ -127,7 +127,7 @@ class Robot(Job):
 
             return True
         else:
-            self.LOG.error(f"无法从 ChatGPT 获得答案")
+            self.LOG.error(f"无法从获得答案")
             return False
 
     def processMsg(self, msg: WxMsg) -> None:
@@ -169,17 +169,17 @@ class Robot(Job):
             else:
                 self.toChitchat(msg)  # 闲聊
 
-    def onMsg(self, msg: WxMsg) -> int:
-        try:
-            self.LOG.info(msg)  # 打印信息
-            self.processMsg(msg)
-        except Exception as e:
-            self.LOG.error(e)
+    # def onMsg(self, msg: WxMsg) -> int:
+    #     try:
+    #         self.LOG.info(msg)  # 打印信息
+    #         self.processMsg(msg)
+    #     except Exception as e:
+    #         self.LOG.error(e)
 
-        return 0
+    #     return 0
 
-    def enableRecvMsg(self) -> None:
-        self.wcf.enable_recv_msg(self.onMsg)
+    # def enableRecvMsg(self) -> None:
+    #     self.wcf.enable_recv_msg(self.onMsg)
 
     def enableReceivingMsg(self) -> None:
         def innerProcessMsg(wcf: Wcf):

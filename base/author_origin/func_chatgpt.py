@@ -22,7 +22,7 @@ class ChatGPT():
             self.client = OpenAI(api_key=key, base_url=api)
         self.conversation_list = {}
         self.system_content_msg = {"role": "system", "content": prompt}
-
+        #TODO 用户可以在聊天界面里使用以/开头的指令随时自由切换系统指令
     def __repr__(self):
         return 'ChatGPT'
 
@@ -59,7 +59,7 @@ class ChatGPT():
     def updateMessage(self, wxid: str, question: str, role: str) -> None:
         now_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-        time_mk = "当需要回答时间时请直接参考回复:"
+        time_mk = "当前时间:"
         # 初始化聊天记录,组装系统信息
         if wxid not in self.conversation_list.keys():
             question_ = [

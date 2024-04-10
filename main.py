@@ -4,12 +4,12 @@
 import signal
 from argparse import ArgumentParser
 
-from base.func_report_reminder import ReportReminder
+# from base.func_report_reminder import ReportReminder
 from configuration import Config
 from constants import ChatType
 from robot import Robot, __version__
 from wcferry import Wcf
-
+from assistant import Agenty
 
 def weather_report(robot: Robot) -> None:
     """模拟发送天气预报
@@ -36,7 +36,9 @@ def main(chat_type: int):
 
     signal.signal(signal.SIGINT, handler)
 
-    robot = Robot(config, wcf, chat_type)
+    # robot = Robot(config, wcf, chat_type)
+    robot = Agenty(wcf)
+
     robot.LOG.info(f"WeChatRobot【{__version__}】成功启动···")
 
     # 机器人启动发送测试消息
@@ -47,13 +49,13 @@ def main(chat_type: int):
     robot.enableReceivingMsg()  # 加队列
 
     # 每天 7 点发送天气预报
-    robot.onEveryTime("07:00", weather_report, robot=robot)
+    # robot.onEveryTime("07:00", weather_report, robot=robot)
 
     # 每天 7:30 发送新闻
-    robot.onEveryTime("07:30", robot.newsReport)
+    # robot.onEveryTime("07:30", robot.newsReport)
 
     # 每天 16:30 提醒发日报周报月报
-    robot.onEveryTime("16:30", ReportReminder.remind, robot=robot)
+    # robot.onEveryTime("16:30", ReportReminder.remind, robot=robot)
 
     # 让机器人一直跑
     robot.keepRunningAndBlockProcess()
