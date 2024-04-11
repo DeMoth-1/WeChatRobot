@@ -9,7 +9,7 @@ from configuration import Config
 from constants import ChatType
 from robot import Robot, __version__
 from wcferry import Wcf
-from assistant import Agenty
+from assistant import WeChatBot
 
 def weather_report(robot: Robot) -> None:
     """模拟发送天气预报
@@ -37,7 +37,7 @@ def main(chat_type: int):
     signal.signal(signal.SIGINT, handler)
 
     # robot = Robot(config, wcf, chat_type)
-    robot = Agenty(wcf)
+    robot = WeChatBot(wcf)
 
     robot.LOG.info(f"WeChatRobot【{__version__}】成功启动···")
 

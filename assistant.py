@@ -49,10 +49,15 @@ import time
 from threading import Thread
 from queue import Empty
 import xml.etree.ElementTree as ET
-from langchain_openai.chat_models.base import _convert_dict_to_message,_convert_message_to_dict
-from LLM.gpt import ChatanywhereGPT
 from wcferry import Wcf, WxMsg
 from typing import Dict,List
+
+
+from langchain_openai.chat_models.base import _convert_dict_to_message,_convert_message_to_dict
+from LLM.gpt import ChatanywhereGPT
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+# from langchain.memory import ChatMessageHistory
+from langchain.memory import ConversationBufferMemory
 
 from langchain_core.messages import (
     AIMessage,
@@ -71,31 +76,55 @@ from langchain_core.messages import (
     ToolMessageChunk,
 )
 
-class Agenty:
+class WeChatBot:
     """
     高级封装好的智能体
     """
-    deep_rooted_template = """你的名字是J.A.R.V.I.S。
+    deep_rooted_template = """J.A.R.V.I.S,
                     你是由友小任创建的微信平台AI助手，你致力于为用户提供辅助，
                     提供真实有效易于理解的信息。现在你正在和{user}交流。"""
             
     def __init__(self, wcf: Wcf):
         self.wcf = wcf #对接微信API实现功能
         self.wxid = self.wcf.get_self_wxid()
-        self.conversation_list:Dict[str, List[str]] = {}  #存贮每一个用户的短期对话
-        self.llm = ChatanywhereGPT() #初始化大模型
         self.allContacts = self.getAllContacts()
+        
+        self.llm = ChatanywhereGPT() #初始化大模型
+        self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
+        
+        self.prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    self.deep_rooted_template
+                ),
+                MessagesPlaceholder(variable_name="history")
+            ]
+        )
+
+        
+
+
         self.LOG = logging.getLogger("Robot")
-    def get_answer(self, question: str, wxid: str) -> str:
+    
+    def main_process_start_point(self, question: str, wxid: str) -> str:
         # wxid或者roomid,个人时为微信id，群消息时为群id
         self._update_message(wxid, question, "user")
-        langchain_messages = [message for message in self.conversation_list[wxid]]#将字典形式的数据转为Langchain的对话数据类型
-       
+        memory = self.conversation_memory_list[wxid]
+        rsp = self._main_chat_process_pipline(memory,wxid)
+        self._update_message(wxid, rsp, "assistant")
+        return rsp
+
+
+    def _main_chat_process_pipline(self,memory:ConversationBufferMemory,wxid:str,)->str:
+        rsp=""
+        
         try:
-            rsp:BaseMessage = self.llm.invoke(langchain_messages)
-            rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
-            rsp = rsp.replace("\n\n", "\n")
-            self._update_message(wxid, rsp, "assistant")
+            chain = self.prompt | self.llm
+            rsp:BaseMessage = chain.invoke({"history":memory.buffer_as_messages,
+                                            "user":self.allContacts[wxid]})
+            # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
+            # rsp = rsp.replace("\n\n", "\n")
         # except AuthenticationError:
         #     self.LOG.error("OpenAI API 认证失败，请检查 API 密钥是否正确")
         # except APIConnectionError:
@@ -107,34 +136,24 @@ class Agenty:
 
         return rsp.content
 
+
     def _update_message(self, wxid: str, question: str, role: str) -> None:
         now_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
         time_mk = "当前时间:"
         # 初始化聊天记录,组装系统信息
-        if wxid not in self.conversation_list.keys():
-            question_ = [
-                {"role": "system", "content": self.deep_rooted_template},
-                {"role": "system", "content": "" + time_mk + now_time}
-            ]
-            self.conversation_list[wxid] = question_
+        if wxid not in self.conversation_memory_list.keys():
+            memory = ConversationBufferMemory(return_messages=True,input_key="history",output_key="history")
+            memory.chat_memory.add_user_message(question)
+            self.conversation_memory_list[wxid] = memory
 
-        # 当前问题
-        content_question_ = {"role": role, "content": question}
-        self.conversation_list[wxid].append(content_question_)
+        if role == "user":
+            self.conversation_memory_list[wxid].chat_memory.add_user_message(question)
+        elif role == "ai" or role == "assistant":
+            self.conversation_memory_list[wxid].chat_memory.add_ai_message(question)
+        else:
+            self.LOG.error(f"发生错误Chat信息发起者角色错误")
 
-        for cont in self.conversation_list[wxid]:
-            if cont["role"] != "system":
-                continue
-            if cont["content"].startswith(time_mk):
-                cont["content"] = time_mk + now_time
-
-        # 只存储10条记录，超过滚动清除
-        i = len(self.conversation_list[wxid])
-        if i > 10:
-            print("滚动清除微信记录：" + wxid)
-            # 删除多余的记录，倒着删，且跳过第一个的系统消息
-            del self.conversation_list[wxid][1]
 
 
     def keepRunningAndBlockProcess(self) -> None:
@@ -254,7 +273,7 @@ class Agenty:
         """闲聊，接入 ChatGPT
         """
         q = re.sub(r"@.*?[\u2005|\s]", "", msg.content).replace(" ", "")
-        rsp = self.get_answer(q, (msg.roomid if msg.from_group() else msg.sender))
+        rsp = self.main_process_start_point(q, (msg.roomid if msg.from_group() else msg.sender))
 
         if rsp:
             if msg.from_group():
