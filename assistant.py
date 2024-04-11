@@ -78,103 +78,18 @@ from langchain_core.messages import (
     ToolMessage,
     ToolMessageChunk,
 )
+from abc import ABC,abstractmethod
 
-class WeChatBot:
-    """
-    高级封装好的智能体
-    """
-    def __init__(self, wcf: Wcf):
+class Monitor:
+    def __init__(self):
+        self.LOG = logging.getLogger("Robot")
+
+class WeChatBehavior(Monitor,ABC):
+    
+    def __init__(self,wcf:Wcf):
         self.wcf = wcf #对接微信API实现功能
         self.wxid = self.wcf.get_self_wxid()
         self.allContacts = self.getAllContacts()
-        
-        self.llm = ChatanywhereGPT() #初始化大模型
-        self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
-        deep_rooted_template = """
-                    ```自我认知```
-                    我是J.A.R.V.I.S。
-                    我是由友小任创建的微信平台AI助手，我致力于为用户提供辅助。
-                    我要提供真实有效易于理解的信息。我现在正在和{user}交流。
-                    
-                    ```````
-                    """
-        self.tools:List[Tool] = [ExceptionTool(description="ExceptionTool")]
-        self.prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    deep_rooted_template
-                ),
-                MessagesPlaceholder(variable_name="history"),
-                MessagesPlaceholder(variable_name="agent_scratchpad")
-            ]
-        )
-
-        
-
-
-        self.LOG = logging.getLogger("Robot")
-    
-    def main_process_start_point(self, question: str, wxid: str) -> str:
-        # wxid或者roomid,个人时为微信id，群消息时为群id
-        self._update_message(wxid, question, "user")
-        memory = self.conversation_memory_list[wxid]
-        rsp = self._main_chat_process_pipline(memory,wxid)
-        self._update_message(wxid, rsp, "assistant")
-        return rsp
-
-
-    def _main_chat_process_pipline(self,memory:ConversationBufferMemory,wxid:str,)->str:
-        rsp=""
-        
-        try:
-            agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
-            agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)
-            # chain = self.prompt | self.llm
-            rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
-                                            "user":self.allContacts[wxid]})
-            # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
-            # rsp = rsp.replace("\n\n", "\n")
-        # except AuthenticationError:
-        #     self.LOG.error("OpenAI API 认证失败，请检查 API 密钥是否正确")
-        # except APIConnectionError:
-        #     self.LOG.error("无法连接到 OpenAI API，请检查网络连接")
-        # except APIError as e1:
-        #     self.LOG.error(f"OpenAI API 返回了错误：{str(e1)}")
-        except Exception as e0:
-            self.LOG.error(f"发生未知错误：{str(e0)}")
-# 2024-04-11 14:34:09 发生未知错误：Prompt missing required variables: {'tool_names', 'tools'}
-# 2024-04-11 14:34:09 Receiving message error: 'str' object has no attribute 'content
-        return rsp["output"]
-
-
-    def _update_message(self, wxid: str, question: str, role: str) -> None:
-        now_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
-        time_mk = "当前时间:"
-        # 初始化聊天记录,组装系统信息
-        if wxid not in self.conversation_memory_list.keys():
-            memory = ConversationBufferMemory(return_messages=True,input_key="history",output_key="history")
-            memory.chat_memory.add_user_message(question)
-            self.conversation_memory_list[wxid] = memory
-
-        if role == "user":
-            self.conversation_memory_list[wxid].chat_memory.add_user_message(question)
-        elif role == "ai" or role == "assistant":
-            self.conversation_memory_list[wxid].chat_memory.add_ai_message(question)
-        else:
-            self.LOG.error(f"发生错误Chat信息发起者角色错误")
-
-
-
-    def keepRunningAndBlockProcess(self) -> None:
-        """
-        保持机器人运行，不让进程退出
-        """
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
-
     def autoAcceptFriendRequest(self, msg: WxMsg) -> None:
         try:
             xml = ET.fromstring(msg.content)
@@ -303,3 +218,95 @@ class WeChatBot:
         :return: 处理状态，`True` 成功，`False` 失败
         """
         return self.toChitchat(msg)
+    
+    @abstractmethod
+    def main_process_start_point():
+        """这里是消息入口，在这里实现消息处理逻辑"""
+
+
+class WeChatBot(WeChatBehavior):
+    """
+    高级封装好的智能体
+    """
+    def __init__(self, wcf: Wcf):
+        self.llm = ChatanywhereGPT() #初始化大模型
+        self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
+        deep_rooted_template = """
+                    ```自我认知```
+                    我是J.A.R.V.I.S。
+                    我是由友小任创建的微信平台AI助手，我致力于为用户提供辅助。
+                    我要提供真实有效易于理解的信息。我现在正在和{user}交流。
+                    
+                    ```````
+                    """
+        self.tools:List[Tool] = [ExceptionTool(description="ExceptionTool")]
+        self.prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    deep_rooted_template
+                ),
+                MessagesPlaceholder(variable_name="history"),
+                MessagesPlaceholder(variable_name="agent_scratchpad")
+            ]
+        )
+
+        
+    
+    def main_process_start_point(self, question: str, wxid: str) -> str:
+        # wxid或者roomid,个人时为微信id，群消息时为群id
+        self._update_message(wxid, question, "user")
+        memory = self.conversation_memory_list[wxid]
+        rsp = self._main_chat_process_pipline(memory,wxid)
+        self._update_message(wxid, rsp, "assistant")
+        return rsp
+
+
+    def _main_chat_process_pipline(self,memory:ConversationBufferMemory,wxid:str,)->str:
+        rsp=""
+        try:
+            agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
+            agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)
+            # chain = self.prompt | self.llm
+            rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
+                                            "user":self.allContacts[wxid]})
+            # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
+            # rsp = rsp.replace("\n\n", "\n")
+        # except AuthenticationError:
+        #     self.LOG.error("OpenAI API 认证失败，请检查 API 密钥是否正确")
+        # except APIConnectionError:
+        #     self.LOG.error("无法连接到 OpenAI API，请检查网络连接")
+        # except APIError as e1:
+        #     self.LOG.error(f"OpenAI API 返回了错误：{str(e1)}")
+        except Exception as e0:
+            self.LOG.error(f"发生未知错误：{str(e0)}")
+# 2024-04-11 14:34:09 发生未知错误：Prompt missing required variables: {'tool_names', 'tools'}
+# 2024-04-11 14:34:09 Receiving message error: 'str' object has no attribute 'content
+        return rsp["output"]
+
+
+    def _update_message(self, wxid: str, question: str, role: str) -> None:
+        now_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+        time_mk = "当前时间:"
+        # 初始化聊天记录,组装系统信息
+        if wxid not in self.conversation_memory_list.keys():
+            memory = ConversationBufferMemory(return_messages=True,input_key="history",output_key="history")
+            memory.chat_memory.add_user_message(question)
+            self.conversation_memory_list[wxid] = memory
+
+        if role == "user":
+            self.conversation_memory_list[wxid].chat_memory.add_user_message(question)
+        elif role == "ai" or role == "assistant":
+            self.conversation_memory_list[wxid].chat_memory.add_ai_message(question)
+        else:
+            self.LOG.error(f"发生错误Chat信息发起者角色错误")
+
+
+    def keepRunningAndBlockProcess(self) -> None:
+        """
+        保持机器人运行，不让进程退出
+        """
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
