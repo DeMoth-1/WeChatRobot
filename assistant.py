@@ -108,7 +108,7 @@ class WeChatBehavior(Monitor,ABC):
         if nickName:
             # 添加了好友，更新好友列表
             self.allContacts[msg.sender] = nickName[0]
-            self.sendTextMsg(f"Hi {nickName[0]}，我自动通过了你的好友请求。", msg.sender)
+            self.sendTextMsg(f"Hi {nickName[0]}，我是J.A.R.V.I.S。由友小任创建的微信平台AI助手。我致力于为用户提供帮助。我现在还处于早期开发阶段，希望获得你宝贵的意见。请问有什么可以帮助你的吗？", msg.sender)
 
     def getAllContacts(self) -> dict:
         """
@@ -182,7 +182,8 @@ class WeChatBehavior(Monitor,ABC):
 
         # 非群聊信息，按消息类型进行处理
         if msg.type == 37:  # 好友请求
-            self.autoAcceptFriendRequest(msg)
+            pass
+            # self.autoAcceptFriendRequest(msg)
 
         elif msg.type == 10000:  # 系统信息
             self.sayHiToNewFriend(msg)
@@ -225,7 +226,7 @@ class WeChatBehavior(Monitor,ABC):
         """这里是消息入口，在这里实现消息处理逻辑"""
 
 
-class WeChatBot(WeChatBehavior):
+class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
     """
     高级封装好的智能体
     """
@@ -237,7 +238,7 @@ class WeChatBot(WeChatBehavior):
         deep_rooted_template = """
                     ``````
                     你是J.A.R.V.I.S。
-                    你是由友小任创建的微信平台AI助手，你致力于为用户提供辅助。
+                    你是由友小任创建的微信平台AI助手，你致力于为用户提供帮助。
                     你要提供真实有效易于理解的信息。你现在正在和{user}交流。
                     
                     ```````
