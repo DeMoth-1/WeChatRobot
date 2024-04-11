@@ -108,7 +108,7 @@ class WeChatBehavior(Monitor,ABC):
         if nickName:
             # 添加了好友，更新好友列表
             self.allContacts[msg.sender] = nickName[0]
-            self.sendTextMsg(f"Hi {nickName[0]}，我是J.A.R.V.I.S。由友小任创建的微信平台AI助手。我致力于为用户提供帮助。我现在还处于早期开发阶段，希望获得你宝贵的意见。请问有什么可以帮助你的吗？", msg.sender)
+            self.sendTextMsg(f"Hi {nickName[0]}，我是J.A.R.V.I.S。由友小任创建的微信平台AI助手。我致力于为用户提供帮助。我现在还处于早期开发阶段，希望听到你宝贵的意见。请问有什么可以帮助你的吗？", msg.sender)
 
     def getAllContacts(self) -> dict:
         """
