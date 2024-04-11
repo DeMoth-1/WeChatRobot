@@ -58,6 +58,9 @@ from LLM.gpt import ChatanywhereGPT
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 # from langchain.memory import ChatMessageHistory
 from langchain.memory import ConversationBufferMemory
+from langchain.agents import AgentExecutor, create_react_agent,create_openai_tools_agent
+from langchain.agents import Tool
+from langchain.agents.agent import ExceptionTool
 
 from langchain_core.messages import (
     AIMessage,
@@ -80,10 +83,6 @@ class WeChatBot:
     """
     高级封装好的智能体
     """
-    deep_rooted_template = """J.A.R.V.I.S,
-                    你是由友小任创建的微信平台AI助手，你致力于为用户提供辅助，
-                    提供真实有效易于理解的信息。现在你正在和{user}交流。"""
-            
     def __init__(self, wcf: Wcf):
         self.wcf = wcf #对接微信API实现功能
         self.wxid = self.wcf.get_self_wxid()
@@ -91,14 +90,23 @@ class WeChatBot:
         
         self.llm = ChatanywhereGPT() #初始化大模型
         self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
-        
+        deep_rooted_template = """
+                    ```自我认知```
+                    我是J.A.R.V.I.S。
+                    我是由友小任创建的微信平台AI助手，我致力于为用户提供辅助。
+                    我要提供真实有效易于理解的信息。我现在正在和{user}交流。
+                    
+                    ```````
+                    """
+        self.tools:List[Tool] = [ExceptionTool(description="ExceptionTool")]
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    self.deep_rooted_template
+                    deep_rooted_template
                 ),
-                MessagesPlaceholder(variable_name="history")
+                MessagesPlaceholder(variable_name="history"),
+                MessagesPlaceholder(variable_name="agent_scratchpad")
             ]
         )
 
@@ -120,8 +128,10 @@ class WeChatBot:
         rsp=""
         
         try:
-            chain = self.prompt | self.llm
-            rsp:BaseMessage = chain.invoke({"history":memory.buffer_as_messages,
+            agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
+            agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)
+            # chain = self.prompt | self.llm
+            rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
                                             "user":self.allContacts[wxid]})
             # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
             # rsp = rsp.replace("\n\n", "\n")
@@ -133,8 +143,9 @@ class WeChatBot:
         #     self.LOG.error(f"OpenAI API 返回了错误：{str(e1)}")
         except Exception as e0:
             self.LOG.error(f"发生未知错误：{str(e0)}")
-
-        return rsp.content
+# 2024-04-11 14:34:09 发生未知错误：Prompt missing required variables: {'tool_names', 'tools'}
+# 2024-04-11 14:34:09 Receiving message error: 'str' object has no attribute 'content
+        return rsp["output"]
 
 
     def _update_message(self, wxid: str, question: str, role: str) -> None:
