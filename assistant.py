@@ -81,6 +81,7 @@ from langchain_core.messages import (
 from abc import ABC,abstractmethod
 
 class Monitor:
+    LOG = logging.getLogger("Robot")
     def __init__(self):
         self.LOG = logging.getLogger("Robot")
 
@@ -229,13 +230,15 @@ class WeChatBot(WeChatBehavior):
     高级封装好的智能体
     """
     def __init__(self, wcf: Wcf):
+        super().__init__(wcf)
+        self.wcf = wcf
         self.llm = ChatanywhereGPT() #初始化大模型
         self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
         deep_rooted_template = """
-                    ```自我认知```
-                    我是J.A.R.V.I.S。
-                    我是由友小任创建的微信平台AI助手，我致力于为用户提供辅助。
-                    我要提供真实有效易于理解的信息。我现在正在和{user}交流。
+                    ``````
+                    你是J.A.R.V.I.S。
+                    你是由友小任创建的微信平台AI助手，你致力于为用户提供辅助。
+                    你要提供真实有效易于理解的信息。你现在正在和{user}交流。
                     
                     ```````
                     """
