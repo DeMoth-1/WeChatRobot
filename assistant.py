@@ -84,7 +84,7 @@ class Monitor:
     LOG = logging.getLogger("Robot")
     def __init__(self):
         self.LOG = logging.getLogger("Robot")
-
+#TODO 为每一个用户创建功能字典 {"wid":{"功能名称"：功能}}
 class WeChatBehavior(Monitor,ABC):
     
     def __init__(self,wcf:Wcf):
@@ -194,6 +194,12 @@ class WeChatBehavior(Monitor,ABC):
                 if msg.content == "^更新$":
                     self.config.reload()
                     self.LOG.info("已更新")
+
+                update_prefix = "/update"
+                if msg.content.startswith("/update"):
+                    announcement = msg.content[len(update_prefix):]
+                    self.update_announcement(announcement)
+            
             else:
                 self.toChitchat(msg)  # 闲聊
 
@@ -221,11 +227,23 @@ class WeChatBehavior(Monitor,ABC):
         """
         return self.toChitchat(msg)
     
+    def update_announcement(self,announcement:str):
+        """当自身有功能更新后发布更新功能"""
+        self.send_text_to_all(announcement)
+    
+    def send_text_to_all(self,text):
+        """对所有人群发消息"""
+        friends:List[Dict] = self.wcf.get_friends()
+        for fri in friends:
+            wxid = fri["wxid"]
+            self.wcf.send_text(text,wxid)
     @abstractmethod
     def main_process_start_point():
         """这里是消息入口，在这里实现消息处理逻辑"""
 
 
+
+from Toolkit.information_toolkit import InformationToolkit
 class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
     """
     高级封装好的智能体
@@ -233,17 +251,17 @@ class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立
     def __init__(self, wcf: Wcf):
         super().__init__(wcf)
         self.wcf = wcf
-        self.llm = ChatanywhereGPT() #初始化大模型
+        self.llm = ChatanywhereGPT(temperature=0.1) #初始化大模型 减少随机性为了稳定实现Agent功能
         self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
         deep_rooted_template = """
-                    ``````
-                    你是J.A.R.V.I.S。
+                    你是J.A.R.V.I.S。用第一人称的口吻对话。
                     你是由友小任创建的微信平台AI助手，你致力于为用户提供帮助。
                     你要提供真实有效易于理解的信息。你现在正在和{user}交流。
                     
-                    ```````
+                    
                     """
-        self.tools:List[Tool] = [ExceptionTool(description="ExceptionTool")]
+        information_toolkit = InformationToolkit()
+        self.tools:List[Tool] = information_toolkit.get_tools()
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 (
@@ -271,7 +289,7 @@ class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立
         try:
             agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
             agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)
-            # chain = self.prompt | self.llm
+
             rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
                                             "user":self.allContacts[wxid]})
             # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
@@ -304,7 +322,7 @@ class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立
         elif role == "ai" or role == "assistant":
             self.conversation_memory_list[wxid].chat_memory.add_ai_message(question)
         else:
-            self.LOG.error(f"发生错误Chat信息发起者角色错误")
+            self.LOG.error(f"发生错误,Chat信息发起者角色错误")
 
 
     def keepRunningAndBlockProcess(self) -> None:
