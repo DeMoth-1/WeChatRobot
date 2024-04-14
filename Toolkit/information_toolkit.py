@@ -14,7 +14,6 @@ get_time_tool = StructuredTool.from_function(
     func = get_time_fn,
     name = "get_current_time",
     description = "当你需要获取时间时调用，返回当前时刻时间",
-
 )
 
 class InformationToolkit(BaseToolkit):

@@ -9,7 +9,7 @@ from langchain_core.language_models.chat_models import generate_from_stream,agen
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_core.runnables import run_in_executor
-#接口项目https://github.com/chatanywhere/GPT_API_free
+
 
 from langchain_core.pydantic_v1 import SecretStr
 from openai import APIConnectionError, APIError, AuthenticationError, OpenAI
@@ -22,10 +22,11 @@ model_name ="gpt-3.5-turbo-instruct"
 openai_api_key="sk-doRa7yB9Yp7mGzJcdCpXJWyqU13v4N1SceHWDF3ruTWVt5DX"
 openai_api_base="https://api.chatanywhere.com.cn"
 
-class ChatanywhereGPT(ChatOpenAI):
-    model_name ="gpt-3.5-turbo"
-    openai_api_key:SecretStr="sk-doRa7yB9Yp7mGzJcdCpXJWyqU13v4N1SceHWDF3ruTWVt5DX"
-    openai_api_base="https://api.chatanywhere.com.cn"
+class ChatAnywhereGPT(ChatOpenAI):
+    #接口项目https://github.com/chatanywhere/GPT_API_free
+    model_name = "gpt-3.5-turbo"
+    openai_api_key: SecretStr = "sk-doRa7yB9Yp7mGzJcdCpXJWyqU13v4N1SceHWDF3ruTWVt5DX"
+    openai_api_base = "https://api.chatanywhere.com.cn"
     LOG = logging.getLogger("ChatGPT")
     @property
     def _llm_type(self) -> str:
@@ -50,7 +51,7 @@ class ChatanywhereGPT(ChatOpenAI):
 
 
 if __name__ == "__main__" : 
-    chat = ChatanywhereGPT()
+    chat = ChatAnywhereGPT()
     # print(chat.invoke("111"))
     from langchain.prompts.chat import ChatPromptTemplate
     deep_rooted_template = "你的名字是J.A.R.V.I.S。你是由友小任创建的微信平台AI助手，你致力于为用户提供辅助，提供真实有效易于理解的信息。现在你正在和{user}交流。"

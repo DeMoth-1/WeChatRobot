@@ -1,5 +1,7 @@
+#功能  查看时间
+
 characters = "你是一个微信中的人工智能助手，你致力于为人提供帮助，永远提供真实准确的信息。"
-agent_promp_template = """###Instractions:
+agent_react_promp_template = """###Instractions:
 
 ```
 {characters}
@@ -53,42 +55,31 @@ from wcferry import Wcf, WxMsg
 from typing import Dict,List
 
 
-from langchain_openai.chat_models.base import _convert_dict_to_message,_convert_message_to_dict
-from LLM.gpt import ChatanywhereGPT
+# from langchain_openai.chat_models.base import _convert_dict_to_message,_convert_message_to_dict
+from LLM.chat_anywhere_gpt import ChatAnywhereGPT
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 # from langchain.memory import ChatMessageHistory
 from langchain.memory import ConversationBufferMemory
 from langchain.agents import AgentExecutor, create_react_agent,create_openai_tools_agent
 from langchain.agents import Tool
-from langchain.agents.agent import ExceptionTool
 
-from langchain_core.messages import (
-    AIMessage,
-    AIMessageChunk,
-    BaseMessage,
-    BaseMessageChunk,
-    ChatMessage,
-    ChatMessageChunk,
-    FunctionMessage,
-    FunctionMessageChunk,
-    HumanMessage,
-    HumanMessageChunk,
-    SystemMessage,
-    SystemMessageChunk,
-    ToolMessage,
-    ToolMessageChunk,
-)
 from abc import ABC,abstractmethod
-
+from langchain_core.messages import BaseMessage
+from configuration import Config
+#TODO 实现Prompt选择器 
+#TODO 实现本地知识库搭建 
+## 
+#TODO 实现发送微信信息工具化
 class Monitor:
     LOG = logging.getLogger("Robot")
     def __init__(self):
         self.LOG = logging.getLogger("Robot")
 #TODO 为每一个用户创建功能字典 {"wid":{"功能名称"：功能}}
 class WeChatBehavior(Monitor,ABC):
-    
     def __init__(self,wcf:Wcf):
+
         self.wcf = wcf #对接微信API实现功能
+        # self.wcf = Wcf(debug=True) #对接微信API实现功能
         self.wxid = self.wcf.get_self_wxid()
         self.allContacts = self.getAllContacts()
     def autoAcceptFriendRequest(self, msg: WxMsg) -> None:
@@ -108,12 +99,13 @@ class WeChatBehavior(Monitor,ABC):
         if nickName:
             # 添加了好友，更新好友列表
             self.allContacts[msg.sender] = nickName[0]
-            self.sendTextMsg(f"Hi {nickName[0]}，我是J.A.R.V.I.S。由友小任创建的微信平台AI助手。我致力于为用户提供帮助。我现在还处于早期开发阶段，希望听到你宝贵的意见。请问有什么可以帮助你的吗？", msg.sender)
+            self.sendTextMsg(f"Hi {nickName[0]}，我是J.A.R.V.I.S。您的微信AI助手。我致力于提供帮助。我现在还处于早期开发阶段，希望听到您宝贵的意见。请问有什么可以帮助您的吗？", msg.sender)
 
     def getAllContacts(self) -> dict:
         """
         获取联系人（包括好友、公众号、服务号、群成员……）
-        格式: {"wxid": "NickName"}
+        
+        return 格式: {"wxid": "NickName"}
         """
         contacts = self.wcf.query_sql("MicroMsg.db", "SELECT UserName, NickName FROM Contact;")
         return {contact["UserName"]: contact["NickName"] for contact in contacts}
@@ -191,17 +183,16 @@ class WeChatBehavior(Monitor,ABC):
         elif msg.type == 0x01:  # 文本消息
             # 让配置加载更灵活，自己可以更新配置。也可以利用定时任务更新。
             if msg.from_self():
+                update_prefix = "/update"
                 if msg.content == "^更新$":
                     self.config.reload()
                     self.LOG.info("已更新")
-
-                update_prefix = "/update"
-                if msg.content.startswith("/update"):
+                elif msg.content.startswith(update_prefix):
                     announcement = msg.content[len(update_prefix):]
                     self.update_announcement(announcement)
-            
             else:
                 self.toChitchat(msg)  # 闲聊
+        # elif msg.type == 
 
     def toChitchat(self, msg: WxMsg) -> bool:
         """闲聊，接入 ChatGPT
@@ -244,18 +235,26 @@ class WeChatBehavior(Monitor,ABC):
 
 
 from Toolkit.information_toolkit import InformationToolkit
-class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
+class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
+# class WeChatBot(): #TODO
     """
     高级封装好的智能体
     """
     def __init__(self, wcf: Wcf):
         super().__init__(wcf)
+        # NOTE self.wechat_behavior=WeChatBehavior()
         self.wcf = wcf
-        self.llm = ChatanywhereGPT(temperature=0.1) #初始化大模型 减少随机性为了稳定实现Agent功能
+        # NOTE 删除self.wcf 
+        self.config=Config()
+        chat_anywhere_config:Dict = self.config.chat_anywhere
+        self.llm = ChatAnywhereGPT(model_name=chat_anywhere_config.get("model_name"),
+                                   openai_api_key=chat_anywhere_config.get("api_key"),
+                                   openai_api_base=chat_anywhere_config.get("api_base"),
+                                   temperature=0.1) #初始化大模型 减少随机性为了稳定实现Agent功能
         self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
         deep_rooted_template = """
                     你是J.A.R.V.I.S。用第一人称的口吻对话。
-                    你是由友小任创建的微信平台AI助手，你致力于为用户提供帮助。
+                    你是微信平台AI助手，致力于为用户提供帮助。
                     你要提供真实有效易于理解的信息。你现在正在和{user}交流。
                     
                     
@@ -288,7 +287,7 @@ class WeChatBot(WeChatBehavior): #TODO 将WeChatBehavior和WechatBot作为独立
         rsp=""
         try:
             agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
-            agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)
+            agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)#TODO 做成ReAct形式
 
             rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
                                             "user":self.allContacts[wxid]})

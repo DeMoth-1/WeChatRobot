@@ -9,7 +9,7 @@ from configuration import Config
 from constants import ChatType
 from robot import Robot, __version__
 from wcferry import Wcf
-from assistant import WeChatBot
+from wechatbot import WeChatBot
 
 def weather_report(robot: Robot) -> None:
     """模拟发送天气预报
