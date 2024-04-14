@@ -59,7 +59,8 @@ from typing import Dict,List
 from LLM.chat_anywhere_gpt import ChatAnywhereGPT
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 # from langchain.memory import ChatMessageHistory
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationBufferMemory,ConversationSummaryMemory,ConversationSummaryBufferMemory
+from langchain.memory.chat_memory import BaseChatMemory
 from langchain.agents import AgentExecutor, create_react_agent,create_openai_tools_agent
 from langchain.agents import Tool
 
@@ -235,6 +236,7 @@ class WeChatBehavior(Monitor,ABC):
 
 
 from Toolkit.information_toolkit import InformationToolkit
+from langchain_core.chat_history import BaseChatMessageHistory
 class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
 # class WeChatBot(): #TODO
     """
@@ -251,7 +253,7 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
                                    openai_api_key=chat_anywhere_config.get("api_key"),
                                    openai_api_base=chat_anywhere_config.get("api_base"),
                                    temperature=0.1) #初始化大模型 减少随机性为了稳定实现Agent功能
-        self.conversation_memory_list:Dict[str, ConversationBufferMemory] = {}  #{微信号:[Memory]}
+        self.conversation_memory_list:Dict[str, BaseChatMessageHistory] = {}  #{微信号:[Memory]}
         deep_rooted_template = """
                     你是J.A.R.V.I.S。用第一人称的口吻对话。
                     你是微信平台AI助手，致力于为用户提供帮助。
@@ -283,13 +285,13 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
         return rsp
 
 
-    def _main_chat_process_pipline(self,memory:ConversationBufferMemory,wxid:str,)->str:
+    def _main_chat_process_pipline(self,memory:ConversationSummaryBufferMemory,wxid:str,)->str:
         rsp=""
         try:
             agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
             agent_excutor = AgentExecutor(agent=agent,tools=self.tools,verbose=True)#TODO 做成ReAct形式
 
-            rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer_as_messages,
+            rsp:BaseMessage = agent_excutor.invoke({"history":memory.buffer,
                                             "user":self.allContacts[wxid]})
             # rsp = rsp[2:] if rsp.startswith("\n\n") else rsp
             # rsp = rsp.replace("\n\n", "\n")
@@ -307,19 +309,20 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
 
 
     def _update_message(self, wxid: str, question: str, role: str) -> None:
-        now_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-        time_mk = "当前时间:"
         # 初始化聊天记录,组装系统信息
         if wxid not in self.conversation_memory_list.keys():
-            memory = ConversationBufferMemory(return_messages=True,input_key="history",output_key="history")
+            memory = ConversationSummaryBufferMemory(return_messages=True,
+                                                     input_key="history",
+                                                     output_key="history",
+                                                     llm=self.llm)
             memory.chat_memory.add_user_message(question)
             self.conversation_memory_list[wxid] = memory
-
+        memory:BaseChatMemory = self.conversation_memory_list[wxid]
         if role == "user":
-            self.conversation_memory_list[wxid].chat_memory.add_user_message(question)
+            memory.chat_memory.add_user_message(question)
         elif role == "ai" or role == "assistant":
-            self.conversation_memory_list[wxid].chat_memory.add_ai_message(question)
+            memory.chat_memory.add_ai_message(question)
         else:
             self.LOG.error(f"发生错误,Chat信息发起者角色错误")
 
