@@ -194,7 +194,7 @@ class WeChatBehavior(Monitor,ABC):
             else:
                 self.toChitchat(msg)  # 闲聊
         else:
-            print(f"暂时无法处理的信息类型{msg.type}\nxml:{msg.xml}")
+            print(f"暂时无法处理的信息类型{msg.type}\nxml:{msg.xml}\ncontent:{msg.content}")
 
     def toChitchat(self, msg: WxMsg) -> bool:
         """闲聊，接入 ChatGPT
