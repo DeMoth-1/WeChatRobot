@@ -42,7 +42,7 @@ Observation:行为的结果.
 ###Response
 """
 
-
+#LangSmith ls__199cc6f340634602ab02391937a65f07
 from datetime import datetime
 import logging
 import schedule
@@ -193,7 +193,8 @@ class WeChatBehavior(Monitor,ABC):
                     self.update_announcement(announcement)
             else:
                 self.toChitchat(msg)  # 闲聊
-        # elif msg.type == 
+        else:
+            print(f"暂时无法处理的信息类型{msg.type}\nxml:{msg.xml}")
 
     def toChitchat(self, msg: WxMsg) -> bool:
         """闲聊，接入 ChatGPT
