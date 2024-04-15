@@ -279,13 +279,15 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
     def main_process_start_point(self, question: str, wxid: str) -> str:
         # wxid或者roomid,个人时为微信id，群消息时为群id
         self._update_message(wxid, question, "user")
-        memory = self.conversation_memory_list[wxid]
+        memory:ConversationSummaryBufferMemory = self.conversation_memory_list[wxid]
+        memory.prune()#修理记忆
         rsp = self._main_chat_process_pipline(memory,wxid)
         self._update_message(wxid, rsp, "assistant")
         return rsp
 
 
     def _main_chat_process_pipline(self,memory:ConversationSummaryBufferMemory,wxid:str,)->str:
+        
         rsp=""
         try:
             agent = create_openai_tools_agent(self.llm, self.tools, self.prompt)
