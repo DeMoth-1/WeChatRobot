@@ -71,18 +71,25 @@ from configuration import Config
 #TODO 实现本地知识库搭建 
 ## 
 #TODO 实现发送微信信息工具化
+
+
 class Monitor:
     LOG = logging.getLogger("Robot")
-    def __init__(self):
-        self.LOG = logging.getLogger("Robot")
-#TODO 为每一个用户创建功能字典 {"wid":{"功能名称"：功能}}
+
+import signal
 class WeChatBehavior(Monitor,ABC):
-    def __init__(self,wcf:Wcf):
+    def __init__(self):
+        wcf = Wcf(debug=True)
+        def handler(sig, frame):
+            wcf.cleanup()  # 退出前清理环境
+            exit(0)
+        signal.signal(signal.SIGINT, handler)
 
         self.wcf = wcf #对接微信API实现功能
-        # self.wcf = Wcf(debug=True) #对接微信API实现功能
         self.wxid = self.wcf.get_self_wxid()
         self.allContacts = self.getAllContacts()
+
+        
     def autoAcceptFriendRequest(self, msg: WxMsg) -> None:
         try:
             xml = ET.fromstring(msg.content)
@@ -141,7 +148,7 @@ class WeChatBehavior(Monitor,ABC):
                 try:
                     msg = wcf.get_msg()
                     self.LOG.info(msg)
-                    self.processMsg(msg)
+                    self.process_message(msg)
                 except Empty:
                     continue  # Empty message
                 except Exception as e:
@@ -150,75 +157,6 @@ class WeChatBehavior(Monitor,ABC):
         self.wcf.enable_receiving_msg()
         Thread(target=innerProcessMsg, name="GetMessage", args=(self.wcf,), daemon=True).start()
 
-    def processMsg(self, msg: WxMsg) -> None:
-        """当接收到消息的时候，会调用本方法。如果不实现本方法，则打印原始消息。
-        此处可进行自定义发送的内容,如通过 msg.content 关键字自动获取当前天气信息，并发送到对应的群组@发送者
-        群号：msg.roomid  微信ID：msg.sender  消息内容：msg.content
-        content = "xx天气信息为："
-        receivers = msg.roomid
-        self.sendTextMsg(content, receivers, msg.sender)
-        """
-
-        # 群聊消息
-        if msg.from_group():
-            # 如果在群里被 @
-            # if msg.roomid not in self.config.GROUPS:  # 不在配置的响应的群列表里，忽略
-            #     return
-
-            if msg.is_at(self.wxid):  # 被@
-                self.toAt(msg)
-
-            else:  # 其他消息
-                pass
-
-            return  # 处理完群聊信息，后面就不需要处理了
-
-        # 非群聊信息，按消息类型进行处理
-        if msg.type == 37:  # 好友请求
-            pass
-            # self.autoAcceptFriendRequest(msg)
-
-        elif msg.type == 10000:  # 系统信息
-            self.sayHiToNewFriend(msg)
-
-        elif msg.type == 0x01:  # 文本消息
-            # 让配置加载更灵活，自己可以更新配置。也可以利用定时任务更新。
-            if msg.from_self():
-                update_prefix = "/update"
-                if msg.content == "^更新$":
-                    self.config.reload()
-                    self.LOG.info("已更新")
-                elif msg.content.startswith(update_prefix):
-                    announcement = msg.content[len(update_prefix):]
-                    self.update_announcement(announcement)
-            else:
-                self.toChitchat(msg)  # 闲聊
-        else:
-            print(f"暂时无法处理的信息类型{msg.type}\nxml:{msg.xml}\ncontent:{msg.content}\nextra:{msg.extra}\nid:{msg.id}")
-
-    def toChitchat(self, msg: WxMsg) -> bool:
-        """闲聊，接入 ChatGPT
-        """
-        q = re.sub(r"@.*?[\u2005|\s]", "", msg.content).replace(" ", "")
-        rsp = self.main_process_start_point(q, (msg.roomid if msg.from_group() else msg.sender))
-
-        if rsp:
-            if msg.from_group():
-                self.sendTextMsg(rsp, msg.roomid, msg.sender)
-            else:
-                self.sendTextMsg(rsp, msg.sender)
-
-            return True
-        else:
-            self.LOG.error(f"无法从获得答案")
-            return False
-        
-    def toAt(self, msg: WxMsg) -> bool:
-        """处理被 @ 消息
-        :param msg: 微信消息结构
-        :return: 处理状态，`True` 成功，`False` 失败
-        """
-        return self.toChitchat(msg)
     
     def update_announcement(self,announcement:str):
         """当自身有功能更新后发布更新功能"""
@@ -230,31 +168,87 @@ class WeChatBehavior(Monitor,ABC):
         for fri in friends:
             wxid = fri["wxid"]
             self.wcf.send_text(text,wxid)
+
+
+
+class WeChatMessageHandler(WeChatBehavior,ABC):
+    def process_message(self, msg: WxMsg):
+        if msg.from_group():
+            return self.handle_group_message(msg)
+        elif msg.type == 37:  # 好友请求
+            self.autoAcceptFriendRequest(msg)
+        elif msg.type == 10000:  # 系统信息
+            self.sayHiToNewFriend(msg)
+        elif msg.type == 0x01:  # 文本消息
+            # 让配置加载更灵活，自己可以更新配置。也可以利用定时任务更新。
+            if msg.from_self():
+                self.handle_private_message(msg)
+            else:
+                self.toChitchat(msg)  # 闲聊
+        else:
+            print(f"暂时无法处理的信息类型{msg.type}\nxml:{msg.xml}\ncontent:{msg.content}\nextra:{msg.extra}\nid:{msg.id}")
+
+    def handle_group_message(self, msg: WxMsg):
+        # 群消息处理逻辑
+        # 如果在群里被 @
+        # if msg.roomid not in self.config.GROUPS:  # 不在配置的响应的群列表里，忽略
+        #     return
+        if msg.is_at(self.wxid):  # 被@
+            self.toAt(msg)
+        else:  # 其他消息
+            pass
+        return  # 处理完群聊信息，后面就不需要处理了
+
+    def handle_private_message(self, msg: WxMsg):
+        # 私聊消息处理逻辑
+        update_prefix = "/update"
+        if msg.content == "^更新$":
+            self.config.reload()
+            self.LOG.info("已更新")
+        elif msg.content.startswith(update_prefix):
+            announcement = msg.content[len(update_prefix):]
+            self.update_announcement(announcement)
+    
+    def toChitchat(self, msg: WxMsg) -> bool:
+        """闲聊，接入 ChatGPT
+        """
+        
+        rsp = self.process_msg_start_point(msg)
+
+        if rsp:
+            if msg.from_group():
+                self.sendTextMsg(rsp, msg.roomid, msg.sender)
+            else:
+                self.sendTextMsg(rsp, msg.sender)
+            return True
+        else:
+            self.LOG.error(f"无法从获得答案")
+            return False
+        
+    def toAt(self, msg: WxMsg) -> bool:
+        """处理被 @ 消息
+        :param msg: 微信消息结构
+        :return: 处理状态，`True` 成功，`False` 失败
+        """
+        return self.toChitchat(msg)
+
     @abstractmethod
-    def main_process_start_point():
-        """这里是消息入口，在这里实现消息处理逻辑"""
+    def process_msg_start_point(self,msg):
+        q = re.sub(r"@.*?[\u2005|\s]", "", msg.content).replace(" ", "")
+        sender = (msg.roomid if msg.from_group() else msg.sender)
+        pass
 
 
 
-from Toolkit.information_toolkit import InformationToolkit
-from langchain_core.chat_history import BaseChatMessageHistory
-class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
-# class WeChatBot(): #TODO
-    """
-    高级封装好的智能体
-    """
-    def __init__(self, wcf: Wcf):
-        super().__init__(wcf)
-        # NOTE self.wechat_behavior=WeChatBehavior()
-        self.wcf = wcf
-        # NOTE 删除self.wcf 
+class Bot:
+    def __init__(self):
         self.config=Config()
         chat_anywhere_config:Dict = self.config.chat_anywhere
         self.llm = ChatAnywhereGPT(model_name=chat_anywhere_config.get("model_name"),
                                    openai_api_key=chat_anywhere_config.get("api_key"),
                                    openai_api_base=chat_anywhere_config.get("api_base"),
                                    temperature=0.1) #初始化大模型 减少随机性为了稳定实现Agent功能
-        self.conversation_memory_list:Dict[str, BaseChatMessageHistory] = {}  #{微信号:[Memory]}
+          
         deep_rooted_template = """
                     你是J.A.R.V.I.S。用第一人称的口吻对话。
                     你是微信平台AI助手，致力于为用户提供帮助。
@@ -275,9 +269,23 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
             ]
         )
 
-        
-    
-    def main_process_start_point(self, question: str, wxid: str) -> str:
+
+
+from Toolkit.information_toolkit import InformationToolkit
+from langchain_core.chat_history import BaseChatMessageHistory
+class WeChatBot(WeChatMessageHandler,Bot): #HACK 将WeChatBehavior和WechatBot作为独立平等的类示例进行交互
+    """
+    高级封装好的智能体
+    """
+    def __init__(self):
+        WeChatMessageHandler.__init__(self)
+        Bot.__init__(self)
+        self.enableReceivingMsg()
+        self.conversation_memory_list:Dict[str, BaseChatMessageHistory] = {}#{微信号:[Memory]}
+
+    def process_msg_start_point(self,msg) -> str:
+        question = re.sub(r"@.*?[\u2005|\s]", "", msg.content).replace(" ", "")
+        wxid = (msg.roomid if msg.from_group() else msg.sender)
         # wxid或者roomid,个人时为微信id，群消息时为群id
         self._update_message(wxid, question, "user")
         memory:ConversationSummaryBufferMemory = self.conversation_memory_list[wxid]
@@ -306,13 +314,10 @@ class WeChatBot(WeChatBehavior): #HACK 将WeChatBehavior和WechatBot作为独立
         #     self.LOG.error(f"OpenAI API 返回了错误：{str(e1)}")
         except Exception as e0:
             self.LOG.error(f"发生未知错误：{str(e0)}")
-# 2024-04-11 14:34:09 发生未知错误：Prompt missing required variables: {'tool_names', 'tools'}
-# 2024-04-11 14:34:09 Receiving message error: 'str' object has no attribute 'content
         return rsp["output"]
 
 
     def _update_message(self, wxid: str, question: str, role: str) -> None:
-
         # 初始化聊天记录,组装系统信息
         if wxid not in self.conversation_memory_list.keys():
             memory = ConversationSummaryBufferMemory(return_messages=True,

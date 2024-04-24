@@ -28,16 +28,16 @@ def weather_report(robot: Robot) -> None:
 
 def main(chat_type: int):
     config = Config()
-    wcf = Wcf(debug=True)
+    # wcf = Wcf(debug=True)
 
-    def handler(sig, frame):
-        wcf.cleanup()  # 退出前清理环境
-        exit(0)
+    # def handler(sig, frame):
+    #     wcf.cleanup()  # 退出前清理环境
+    #     exit(0)
 
-    signal.signal(signal.SIGINT, handler)
+    # signal.signal(signal.SIGINT, handler)
 
     # robot = Robot(config, wcf, chat_type)
-    robot = WeChatBot(wcf)
+    robot = WeChatBot()
 
     robot.LOG.info(f"WeChatRobot【{__version__}】成功启动···")
 
